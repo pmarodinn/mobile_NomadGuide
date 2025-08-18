@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(uuid()) @db.Uuid
+  email         String       @unique @db.VarChar(255)
+  passwordHash  String       @map("password_hash") @db.VarChar(255)
+  emailVerified Boolean      @default(false) @map("email_verified")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastLogin     DateTime?    @map("last_login") @db.Timestamptz(6)
+  isActive      Boolean      @default(true) @map("is_active")
+  budgets       Budget[]
+  profile       UserProfile?
+
+  @@map("users")
+}
+
+model UserProfile {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @unique @map("user_id") @db.Uuid
+  firstName        String?   @map("first_name") @db.VarChar(100)
+  lastName         String?   @map("last_name") @db.VarChar(100)
+  dateOfBirth      DateTime? @map("date_of_birth") @db.Date
+  nationality      String?   @db.VarChar(100)
+  occupation       String?   @db.VarChar(200)
+  phoneNumber      String?   @map("phone_number") @db.VarChar(20)
+  emergencyContact String?   @map("emergency_contact") @db.VarChar(500)
+  profilePicture   String?   @map("profile_picture") @db.VarChar(500)
+  bio              String?
+  preferences      Json?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?
+  color       String?  @db.VarChar(7)
+  icon        String?  @db.VarChar(100)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  budgets     Budget[]
+
+  @@map("categories")
+}
+
+model Budget {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  categoryId      String   @map("category_id") @db.Uuid
+  amount          Decimal  @db.Decimal(15, 2)
+  plannedAmount   Decimal? @map("planned_amount") @db.Decimal(15, 2)
+  actualAmount    Decimal? @map("actual_amount") @db.Decimal(15, 2)
+  currency        String   @default("USD") @db.VarChar(3)
+  description     String?
+  transactionDate DateTime @default(now()) @map("transaction_date") @db.Timestamptz(6)
+  location        String?  @db.VarChar(255)
+  coordinates     Json?
+  receiptUrl      String?  @map("receipt_url") @db.VarChar(500)
+  tags            String[] @db.VarChar(50)
+  isRecurring     Boolean  @default(false) @map("is_recurring")
+  recurringPeriod String?  @map("recurring_period") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category        Category @relation(fields: [categoryId], references: [id])
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+}
