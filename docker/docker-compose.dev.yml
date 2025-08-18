@@ -1,0 +1,35 @@
+# Development Override Configuration
+version: '3.8'
+
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: nomadguide_dev
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+
+  pgadmin:
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@nomadguide.local
+      PGADMIN_DEFAULT_PASSWORD: dev123
+
+  backend:
+    build:
+      target: development
+    environment:
+      NODE_ENV: development
+      DEBUG: nomadguide:*
+      LOG_LEVEL: debug
+      DATABASE_URL: postgresql://dev:dev123@postgres:5432/nomadguide_dev
+    volumes:
+      - ../backend:/app
+      - /app/node_modules
+    command: npm run dev:watch
+
+volumes:
+  postgres_dev_data:
+    name: nomadguide_postgres_dev_data
