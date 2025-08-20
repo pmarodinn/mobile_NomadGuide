@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import db from '../lib/database';
+import crypto from 'crypto';
 
 // Validation schemas
 const registerSchema = z.object({
@@ -25,6 +26,10 @@ const generateToken = (userId: string): string => {
     { expiresIn: '7d' }
   );
 };
+
+// In-memory stores (trocar por persistência real depois)
+const emailVerificationTokens = new Map<string,string>(); // token -> userId
+const passwordResetTokens = new Map<string,{userId:string,expires:number}>();
 
 // Register new user
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -234,5 +239,75 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       error: 'Internal server error',
       message: 'Failed to get user profile'
     });
+  }
+};
+
+// Request email verification
+export const requestEmailVerification = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).userId;
+    if (!userId) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    if (user.emailVerified) { res.json({ message: 'Already verified' }); return; }
+    const token = crypto.randomBytes(24).toString('hex');
+    emailVerificationTokens.set(token, userId);
+    // Placeholder envio email
+    console.log('[EMAIL_VERIFY_LINK]', `/verify-email?token=${token}`);
+    res.json({ message: 'Verification email sent (mock)', token });
+  } catch (e) {
+    console.error('requestEmailVerification error', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Verify email
+export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') { res.status(400).json({ error: 'Invalid token' }); return; }
+    const userId = emailVerificationTokens.get(token);
+    if (!userId) { res.status(400).json({ error: 'Token not found or expired' }); return; }
+    await db.user.update({ where: { id: userId }, data: { emailVerified: true } });
+    emailVerificationTokens.delete(token);
+    res.json({ message: 'Email verified' });
+  } catch (e) {
+    console.error('verifyEmail error', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Request password reset
+export const requestPasswordReset = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) { res.status(400).json({ error: 'Email required' }); return; }
+    const user = await db.user.findUnique({ where: { email } });
+    if (user) {
+      const token = crypto.randomBytes(24).toString('hex');
+      passwordResetTokens.set(token, { userId: user.id, expires: Date.now() + 1000*60*30 });
+      console.log('[PASSWORD_RESET_LINK]', `/reset-password?token=${token}`);
+    }
+    res.json({ message: 'If the email exists, a reset link was sent (mock)' });
+  } catch (e) {
+    console.error('requestPasswordReset error', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Reset password
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) { res.status(400).json({ error: 'Token and password required' }); return; }
+    const entry = passwordResetTokens.get(token);
+    if (!entry || entry.expires < Date.now()) { res.status(400).json({ error: 'Invalid or expired token' }); return; }
+    const passwordHash = await bcrypt.hash(password, 12);
+    await db.user.update({ where: { id: entry.userId }, data: { passwordHash } });
+    passwordResetTokens.delete(token);
+    res.json({ message: 'Password updated' });
+  } catch (e) {
+    console.error('resetPassword error', e);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -72,4 +72,6 @@ coverage/
 *.lcov
 
 # Test reports
-test-results/
+
+# Arquivo local de senhas (nunca versionar)
+senhas.txt
